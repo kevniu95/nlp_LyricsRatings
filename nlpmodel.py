@@ -56,6 +56,9 @@ def token_to_char(token, char_vocab, reverse = False):
 
 # A2. Collate Functions
 def collate_into_bow(batch, vocab, rate_type, **kwargs):
+    """
+    Collate function for bag of words
+    """
     stops = set(stopwords.words('english'))
     treat_stops = kwargs.get('treat_stops', False)
     bows = torch.zeros(len(batch), len(vocab))
@@ -72,6 +75,9 @@ def collate_into_bow(batch, vocab, rate_type, **kwargs):
     return labels, bows
 
 def collate_into_cbow_unfrozen(batch, vocab, rate_type, **kwargs):
+    """
+    Collate function for (unfrozen) continuous bag of words
+    """
     labels = make_labels_tensor(batch, rate_type)
     word_idxs = []
     all_tokens = 0
@@ -86,6 +92,9 @@ def collate_into_cbow_unfrozen(batch, vocab, rate_type, **kwargs):
 
 
 def collate_batch_rnn_firstk(batch, vocab, rate_type, **kwargs):
+    """
+    Collate function for taking contiguous k tokens of album
+    """
     chunk_size = kwargs['chunk_size']
     chunk_portion = kwargs['chunk_portion']
     treat_stops = kwargs['treat_stops']
@@ -112,7 +121,24 @@ def collate_batch_rnn_firstk(batch, vocab, rate_type, **kwargs):
     word_idxs = pad_sequence(word_idxs, batch_first = False, padding_value = PAD)
     return labels, word_idxs
 
+def collate_rnn_whole(batch, vocab, rate_type, **kwargs):
+    """
+    Collate function for taking all tokens from album in RNN
+    """
+    labels = make_labels_tensor(batch, rate_type)
+    word_idxs = []
+    for num, sample in enumerate(batch):
+        tokens = [TOKEN_CHANGES.get(i, i) for i in tokenizer(sample[3])]
+        token_idxs = [vocab[token] for token in tokens]
+        word_idxs.append(torch.LongTensor(token_idxs))
+    word_idxs = pad_sequence(word_idxs, batch_first = False, padding_value = PAD)
+    return labels, word_idxs
+
 def tokenize_treating_stops(tokens, vocab, treat_stops):
+    """
+    Helper function that treats stops according to 
+    what is requested
+    """
     stops = set(stopwords.words('english'))
     token_idxs = []
     for token in tokens:
@@ -124,59 +150,11 @@ def tokenize_treating_stops(tokens, vocab, treat_stops):
             token_idxs.append(vocab[token])
     return token_idxs
 
-# =======
-# Still unchecked below
-# =======
-
-def collate_batch_chars(batch, vocab, rate_type, **kwargs):
-    firstk = kwargs['chunk_size']
-    char_vocab = kwargs['char_vocab']
-    labels = make_labels_tensor(batch, rate_type)
-    word_idxs = []
-    for num, sample in enumerate(batch):
-        tokens = [TOKEN_CHANGES.get(i, i) for i in tokenizer(sample[3])]
-        tokens = tokens[:firstk]
-        token_idxs = [vocab[token] for token in tokens]
-        char_idxs = [token_to_char(token, char_vocab) for token in tokens]
-        char_idxs = pad_sequence(char_idxs, batch_first = False, padding_value = PAD)
-        char_idxs_b = [token_to_char(token, char_vocab, True) for token in tokens]
-        char_idxs_b = pad_sequence(char_idxs_b, batch_first = False, padding_value = PAD)
-        word_idxs.append(torch.LongTensor(token_idxs))
-    word_idxs = pad_sequence(word_idxs, batch_first = False, padding_value = PAD)
-    return labels, word_idxs, char_idxs, char_idxs_b
-
-def collate_batch_song(batch, vocab, rate_type, **kwargs):
-    chunk_size = kwargs['chunk_size']
-    chunk_portion = kwargs['chunk_portion']
-    treat_stops = kwargs['treat_stops']
-    names = []
-    labels = []
-    songs = []
-    for num, sample in enumerate(batch):
-        if rate_type == 'c_rate':
-            score = int(sample[1])
-        else:
-            score = int(sample[2]) * 10
-
-        tokens = [TOKEN_CHANGES.get(i, i) for i in tokenizer(sample[3])]
-        token_idxs = tokenize_treating_stops(tokens, vocab, treat_stops)
-        song_tokens = []
-
-        for token_idx in token_idxs:
-            song_tokens.append(token_idx)
-            if token_idx == SBE:
-                labels.append(score)
-                names.append(sample[0])
-                songs.append(torch.LongTensor(song_tokens))
-                song_tokens = []
-    songs = pad_sequence(songs, batch_first = False, padding_value = PAD)
-    print(len(labels))
-    print(songs.shape)
-    print(len(names))
-    return torch.tensor(labels, dtype = torch.float), songs, names
-
-
 def collate_batch_rnn_firstk_song(batch, vocab, rate_type, **kwargs):
+    """
+    Collate function for taking first k // n tokens from each song
+    where k is size of subset and n is number of songs
+    """
     firstk = kwargs['chunk_size']
     labels = make_labels_tensor(batch, rate_type)
     word_idxs = []
@@ -198,7 +176,37 @@ def collate_batch_rnn_firstk_song(batch, vocab, rate_type, **kwargs):
     word_idxs = pad_sequence(word_idxs, batch_first = False, padding_value = PAD)
     return labels, word_idxs
 
+
+# =======
+# Unused
+# =======
+
+def collate_batch_chars(batch, vocab, rate_type, **kwargs):
+    """
+    Collate function for hierarchial model with character RNNs
+    """
+    firstk = kwargs['chunk_size']
+    char_vocab = kwargs['char_vocab']
+    labels = make_labels_tensor(batch, rate_type)
+    word_idxs = []
+    for num, sample in enumerate(batch):
+        tokens = [TOKEN_CHANGES.get(i, i) for i in tokenizer(sample[3])]
+        tokens = tokens[:firstk]
+        token_idxs = [vocab[token] for token in tokens]
+        char_idxs = [token_to_char(token, char_vocab) for token in tokens]
+        char_idxs = pad_sequence(char_idxs, batch_first = False, padding_value = PAD)
+        char_idxs_b = [token_to_char(token, char_vocab, True) for token in tokens]
+        char_idxs_b = pad_sequence(char_idxs_b, batch_first = False, padding_value = PAD)
+        word_idxs.append(torch.LongTensor(token_idxs))
+    word_idxs = pad_sequence(word_idxs, batch_first = False, padding_value = PAD)
+    return labels, word_idxs, char_idxs, char_idxs_b
+
+
 def collate_batch_chunk(batch, vocab, rate_type, **kwargs):
+    """
+    Collate function for batching albums into size-k chunks
+    - not in paper
+    """
     chunk_size = kwargs['chunk_size']
     labels = []
     word_idxs = []
@@ -217,20 +225,13 @@ def collate_batch_chunk(batch, vocab, rate_type, **kwargs):
     word_idxs = pad_sequence(word_idxs, batch_first = False, padding_value = PAD)
     return torch.tensor(labels, dtype = torch.float), word_idxs
 
-def collate_rnn_whole(batch, vocab, rate_type, **kwargs):
-    labels = make_labels_tensor(batch, rate_type)
-    word_idxs = []
-    for num, sample in enumerate(batch):
-        tokens = [TOKEN_CHANGES.get(i, i) for i in tokenizer(sample[3])]
-        token_idxs = [vocab[token] for token in tokens]
-        word_idxs.append(torch.LongTensor(token_idxs))
-    word_idxs = pad_sequence(word_idxs, batch_first = False, padding_value = PAD)
-    return labels, word_idxs
-
 # ==============
 # B. PyTorch Modules
 # ==============
 class BoWClassifier(nn.Module):
+    """
+    Model for BOW
+    """
     def __init__(self, vocab_size, hidden_dim = 100, nonlinearity = nn.ReLU(), use_cuda = False, **kwargs):
         super(BoWClassifier, self).__init__()
         self.use_cuda = use_cuda
@@ -246,6 +247,9 @@ class BoWClassifier(nn.Module):
         return self.linear2(out).unsqueeze(2)
 
 class CBoWClassifier(nn.Module):
+    """
+    Model for Continuous Bag of Words
+    """
     def __init__(self, 
                 vocab_size, 
                 embedding_dim,
@@ -281,6 +285,9 @@ class CBoWClassifier(nn.Module):
         return self.linear2(out).unsqueeze(2)
 
 class CharacterRNN(nn.Module):
+    """
+    Model for character-level RNN
+    """
     def __init__(self, 
                 char_vocab_size,
                 embedding_dim,
@@ -295,6 +302,9 @@ class CharacterRNN(nn.Module):
         return hidden[0].squeeze(0).unsqueeze(1 )
 
 class RNNClassifier(nn.Module):
+    """
+    Model for all RNN-based approaches
+    """
     def __init__(self,
                  rnn_type,
                  vocab_size,
@@ -444,7 +454,6 @@ def get_accuracy(dataloader, model, info, use_cuda):
 # D. General Template
 # ==============
 
-
 # class KFoldData:
 #     def __init__(self, a, b, c, methodology):
 #         self.a = a
@@ -471,6 +480,15 @@ def get_accuracy(dataloader, model, info, use_cuda):
 #         return train, test   
     
 class NlpModel():
+    """
+    General class that handles running of model and collation of datasets
+    given.
+
+    Specific methods used are determined by the methodology back in generalRunner,
+    where object of this class is instantiated.
+        How model runs in runModel() and collates data in collate_datasets()
+        is defined by methodology tuples in generalRunner
+    """
     def __init__(self, train_collate, test_collate, train_fx, get_accuracy, model_type, model_kwargs, info, use_cuda, *args):
         self.train_collate = train_collate
         self.test_collate = test_collate
@@ -548,31 +566,31 @@ class NlpModel():
     #         pickle.dump(data, handle, protocol=pickle.HIGHEST_PROTOCOL)
     #     return train, test
 
-    def create_datasets(self, reg_albums, test_reg_albums, final):
-        print("Creating datasets right now...")
-        # if valid:
-            # self.create_datasets_k(reg_albums, methodology, wd_albs)
-        prop = 0.8
+    # def create_datasets(self, reg_albums, test_reg_albums, final):
+    #     print("Creating datasets right now...")
+    #     # if valid:
+    #         # self.create_datasets_k(reg_albums, methodology, wd_albs)
+    #     prop = 0.8
 
-        if final:
-            print("Running on 'final'")
-            print(f"Final train set is {len(reg_albums)}")
-            num_train = int(len(reg_albums) * .9)    
-            num_valid = len(reg_albums) - num_train
-            train_data, valid_data = random_split (reg_albums, [num_train, num_valid])
-            print(f"Train is size: {len(train_data)}, valid is size: {len(valid_data)}, test is size: {len(test_reg_albums)}")
-            return train_data, valid_data, test_reg_albums
+    #     if final:
+    #         print("Running on 'final'")
+    #         print(f"Final train set is {len(reg_albums)}")
+    #         num_train = int(len(reg_albums) * .9)    
+    #         num_valid = len(reg_albums) - num_train
+    #         train_data, valid_data = random_split (reg_albums, [num_train, num_valid])
+    #         print(f"Train is size: {len(train_data)}, valid is size: {len(valid_data)}, test is size: {len(test_reg_albums)}")
+    #         return train_data, valid_data, test_reg_albums
 
-        num_train_valid = int(len(reg_albums) * prop)
-        num_test = len(reg_albums) - num_train_valid
-        train_valid_data, test_data = random_split(reg_albums, [num_train_valid, num_test])
+    #     num_train_valid = int(len(reg_albums) * prop)
+    #     num_test = len(reg_albums) - num_train_valid
+    #     train_valid_data, test_data = random_split(reg_albums, [num_train_valid, num_test])
 
-        num_train = int(num_train_valid * .9)
-        num_valid = num_train_valid - num_train
-        train_data, valid_data = random_split(train_valid_data, [num_train, num_valid])
+    #     num_train = int(num_train_valid * .9)
+    #     num_valid = num_train_valid - num_train
+    #     train_data, valid_data = random_split(train_valid_data, [num_train, num_valid])
 
-        print(f"Train samples: {num_train}\nValid samples: {num_valid}\nTest samples: {num_test}")
-        return train_data, valid_data, test_data
+    #     print(f"Train samples: {num_train}\nValid samples: {num_valid}\nTest samples: {num_test}")
+    #     return train_data, valid_data, test_data
     
     def collate_datasets(self, train_data, valid_data, test_data, batch_size, test_batch_size, valid, **kwargs):
         train_collate_fn = partial(self.train_collate, **kwargs)
