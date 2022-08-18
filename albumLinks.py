@@ -31,12 +31,21 @@ class AlbumLinkLoader:
                 self.links  = pickle.load(handle)
     
     def print_links(self):
+        """
+        Prints the links associated with each year
+        """
         for k, v in self.links.items():
             print(k)
             print(v)
             print('\n')
 
     def update_album_links(self, driver):
+        """
+        For each year, obtains albums on Metacritic with at least 7 critic ratings
+
+        kwargs:
+        driver -- Selenium webdriver
+        """
         if self.links is None:
             album_links = {}
         else:
@@ -72,6 +81,13 @@ class AlbumLinkLoader:
         self.links = album_links
         
     def get_titles(self, driver, this_yr_links):
+        """
+        Gets link for this album
+
+        kwargs:
+        driver -- Selenium web driver
+        this_yr_links -- list of links to be updated
+        """
         titles = driver.find_elements(By.CLASS_NAME, "title")
         page_album_links = [title.get_attribute('href') for title in titles if title is not None]
         this_yr_links = this_yr_links + page_album_links

@@ -26,6 +26,9 @@ class Song():
         self.lyrics_set = False
        
     def get_lyrics(self):
+        """
+        Gets lyrics associated with a song using self lyric_link
+        """
         if self.lyric_link:
             print(self.lyric_link)
             page = requests.get(self.lyric_link)
@@ -114,6 +117,10 @@ class Album():
         3. Lyrics information from Genius
 
         and stores as properties of this Album object
+
+        Keyword arguments:
+        link -- link to metacritic profile of album
+        driver -- Selenium webdriver
         """
 
         print("Getting album, artist name")
@@ -177,6 +184,10 @@ class Album():
 
 
 def load_saved_albums(album_path):
+    """
+    Loads set of albums saved at album_path
+        -Intended to be albums_f.pickle
+    """
     if IN_COLAB:
         try: 
             with open(album_path, "rb") as fh:
@@ -234,7 +245,12 @@ class Albums():
 
     def get_lyrics_for_year(self, year, driver, save = False):
         """
-        Save lyrics for each album
+        Save lyrics for each album, processing by year
+
+        kwargs:
+        year -- the year's worth of lyrics and album info to retrieve
+        driver -- Selenium driver
+        save -- update "albums_f.pickle", or wherever final albums pickle output is saved
         """
         yr_albums = self.albums[year]
         ctr = 0
@@ -273,6 +289,9 @@ class Albums():
 
 
 def folklore_check(driver):
+    """
+    Check on a single album
+    """
     a = load_saved_albums('albums_f.pickle')
     folklore = [(folk_link, folk_Album) for folk_link, folk_Album in a[2020].items() if 'folklore' in folk_link][0]
     print(folklore)
